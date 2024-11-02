@@ -47,7 +47,7 @@
 //! }
 //! ```
 
-#![deny(clippy::correctness)]
+#![deny(clippy::correctness, unsafe_code)]
 #![warn(
     clippy::perf,
     clippy::complexity,
@@ -616,10 +616,6 @@ impl<const S: usize> UnownedReadBuffer<S> {
             return Ok(0);
         }
 
-        // SAFETY: we promise and try really hard to only add valid utf-8
-        let unsafe_vec = unsafe { buf.as_mut_vec() };
-        debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
-
         loop {
             let to_push = &self.buffer[self.read_count..self.fill_count];
             let mut utf_index = 0;
@@ -629,8 +625,7 @@ impl<const S: usize> UnownedReadBuffer<S> {
             }
 
             if utf_index > 0 {
-                unsafe_vec.extend_from_slice(&to_push[..utf_index]);
-                debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
+                buf.push_str(read_utf8(&to_push[..utf_index])?);
                 count += utf_index;
                 self.read_count += utf_index; //feed will compact the buffer.
             }
@@ -675,8 +670,7 @@ impl<const S: usize> UnownedReadBuffer<S> {
                 utf_index += len;
             }
 
-            unsafe_vec.extend_from_slice(to_push);
-            debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
+            buf.push_str(read_utf8(to_push)?);
             return Ok(count + to_push.len());
         }
     }
@@ -701,10 +695,6 @@ impl<const S: usize> UnownedReadBuffer<S> {
             return Ok(0);
         }
 
-        // SAFETY: we promise and try really hard to only add valid utf-8
-        let unsafe_vec = unsafe { buf.as_mut_vec() };
-        debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
-
         loop {
             for idx in self.read_count..self.fill_count {
                 if self.buffer[idx] == b'\n' {
@@ -718,10 +708,7 @@ impl<const S: usize> UnownedReadBuffer<S> {
                         //\n is not a valid continuation so a call to utf8_cont_assert(\n) will always fail.
                         utf_index += next_utf8(to_push, utf_index)?;
                     }
-                    unsafe_vec.extend_from_slice(to_push);
-
-                    // Just to be sure we let the rust standard library also additionally validate our utf-8 in debug mode.
-                    debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
+                    buf.push_str(read_utf8(to_push)?);
                     self.read_count += to_push.len();
                     return Ok(count + to_push.len());
                 }
@@ -735,10 +722,7 @@ impl<const S: usize> UnownedReadBuffer<S> {
             }
 
             if utf_index > 0 {
-                unsafe_vec.extend_from_slice(&to_push[..utf_index]);
-
-                // Just to be sure we let the rust standard library also additionally validate our utf-8 in debug mode.
-                debug_assert!(std::str::from_utf8(unsafe_vec.as_slice()).is_ok());
+                buf.push_str(read_utf8(&to_push[..utf_index])?);
                 count += utf_index;
                 self.read_count += utf_index;
             }
@@ -863,6 +847,20 @@ fn next_utf8(to_push: &[u8], count: usize) -> io::Result<usize> {
             ))
         }
     })
+}
+
+/// This fn does a `utf::from_utf8` safety check,
+/// and then converts errors that should never exist (`Utf8Error`) to `io::Error`
+fn read_utf8(to_push: &[u8]) -> io::Result<&str> {
+    core::str::from_utf8(to_push).map_or_else(
+        |_| {
+            Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "Unvalid UTF-8 detected",
+            ))
+        },
+        Ok,
+    )
 }
 
 /// This fn returns err if the given byte does not have the utf-8 continuation bits set.

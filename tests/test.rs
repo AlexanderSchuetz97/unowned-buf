@@ -120,6 +120,54 @@ pub fn test_read_until() {
     assert_eq!(copy, data);
 }
 
+#[test]
+pub fn test_read_until_limit_bug() {
+    let mut data = vec![0xA, 0xB, 0xC, 0xD, 0xB, 0xE, 0xF];
+    let mut src_cursor = Cursor::new(&mut data);
+    let mut buf = UnownedReadBuffer::default();
+    let mut target: Vec<u8> = Vec::new();
+    assert_eq!(2, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(target, vec![0xA, 0xB]);
+    assert_eq!(3, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(target, vec![0xA, 0xB, 0xC, 0xD, 0xB]);
+    assert_eq!(2, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(target, vec![0xA, 0xB, 0xC, 0xD, 0xB, 0xE, 0xF]);
+}
+
+#[test]
+pub fn test_read_until_limit_large() {
+    let mut data = vec![0u8; COUNT];
+    for j in data.iter_mut() {
+        *j = random()
+    }
+
+    let copy = data.clone();
+    let mut target = vec![0u8; COUNT];
+
+    let mut src_cursor = Cursor::new(&mut data);
+    let mut target_cursor = Cursor::new(&mut target);
+    let mut buf = UnownedReadBuffer::default();
+    loop {
+        let rem = COUNT as u64 - target_cursor.position();
+        if rem == 0 {
+            break;
+        }
+        let buf_size = (random::<usize>() % RAND_SIZE) + 1;
+
+        let mut cur_buf = vec![];
+        buf.read_until_limit(&mut src_cursor, random(), buf_size, &mut cur_buf)
+            .unwrap();
+
+        target_cursor.write_all(cur_buf.as_slice()).unwrap();
+    }
+
+    drop(src_cursor);
+    drop(target_cursor);
+
+    assert_eq!(target, data);
+    assert_eq!(copy, data);
+}
+
 fn ascii() -> Vec<u8> {
     let mut dta: Vec<u8> = Vec::new();
     for i in b'A'..b'Z' {

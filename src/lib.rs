@@ -565,11 +565,13 @@ impl<const S: usize> UnownedReadBuffer<S> {
         loop {
             let mut to_push = &self.buffer[self.read_count..self.fill_count];
             if count + to_push.len() > limit {
-                to_push = &to_push[..count - limit];
+                to_push = &to_push[..limit - count];
             }
 
+            debug_assert!(count + to_push.len() <= limit);
+
             for idx in 0..to_push.len() {
-                if self.buffer[idx] == byte {
+                if to_push[idx] == byte {
                     to_push = &to_push[..=idx];
                     buf.extend_from_slice(to_push);
                     self.read_count += to_push.len();

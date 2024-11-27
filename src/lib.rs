@@ -372,10 +372,24 @@ impl<const S: usize> UnownedReadBuffer<S> {
         self.fill_count - self.read_count
     }
 
+    /// This fn will return true if at least one byte can be read.
+    /// If the internal buffer is not empty this fn immediately returns true.
+    /// If the internal buffer is empty then it will call `read()` once and return true if the read did not return Ok(0).
+    ///
+    /// # Errors
+    /// propagated from Read, including `TimedOut` and `WouldBlock`
+    pub fn ensure_readable<T: Read>(&mut self, read: &mut T) -> io::Result<bool> {
+        if self.available() > 0 {
+            return Ok(true);
+        }
+
+        self.feed(read)
+    }
+
     /// This fn reads as many bytes as possible from the internal buffer.
     /// it returns 0 if the internal buffer is empty.
     ///
-    pub fn try_read<T: Read>(&mut self, buffer: &mut [u8]) -> usize {
+    pub fn try_read(&mut self, buffer: &mut [u8]) -> usize {
         if buffer.is_empty() {
             return 0;
         }

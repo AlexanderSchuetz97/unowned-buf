@@ -134,7 +134,6 @@ impl<const S: usize> UnownedWriteBuffer<S> {
             match write.write(&self.buffer[count..self.fill_count]) {
                 Ok(cnt) => {
                     count += cnt;
-                    continue;
                 }
                 Err(e) => {
                     if count == 0 {
@@ -349,13 +348,7 @@ impl Default for UnownedReadBuffer<0x4000> {
 impl<const S: usize> UnownedReadBuffer<S> {
     /// reads some bytes from the read impl.
     fn feed<T: Read>(&mut self, read: &mut T) -> io::Result<bool> {
-        if self.read_count > 0 {
-            if self.read_count < self.fill_count {
-                self.buffer.copy_within(self.read_count..self.fill_count, 0);
-            }
-            self.fill_count -= self.read_count;
-            self.read_count = 0;
-        }
+        self.compact();
 
         let count = read.read(&mut self.buffer.as_mut_slice()[self.fill_count..])?;
         if count == 0 {
@@ -372,9 +365,129 @@ impl<const S: usize> UnownedReadBuffer<S> {
         self.fill_count - self.read_count
     }
 
+    /// returns the size of the internal buffer.
+    #[must_use]
+    pub const fn size(&self) -> usize { S }
+
+    /// Returns the number of bytes in the buffer already read.
+    /// This is essentially the read cursor position in the internal buffer.
+    /// calls to compact will reset this to 0.
+    #[must_use]
+    pub const fn read_count(&self) -> usize {
+        self.read_count
+    }
+
+    /// Returns the writing cursor position of the internal buffer.
+    /// I.e. how many bytes in the internal buffer are or were at some point filled with data.
+    #[must_use]
+    pub const fn fill_count(&self) -> usize {
+        self.fill_count
+    }
+
+    /// Returns the number of bytes at the end of the buffer that can still be filled with data.
+    /// This function does not take the number of bytes that were
+    /// already read from the start of the buffer into account.
+    #[must_use]
+    pub const fn available_space(&self) -> usize {
+        S - self.fill_count
+    }
+
+    /// This function compacts the internal buffer, discarding already read bytes
+    /// and moving all remaining bytes to the start of the internal buffer.
+    ///
+    /// It is guaranteed that the `read_count` is 0 after this function returns.
+    /// This function has no effect if the read count is already 0 prior to calling this function.
+    pub fn compact(&mut self) {
+        if self.read_count > 0 {
+            if self.read_count < self.fill_count {
+                self.buffer.copy_within(self.read_count..self.fill_count, 0);
+            }
+            self.fill_count -= self.read_count;
+            self.read_count = 0;
+        }
+    }
+
+    /// This function will perform a single read and append the bytes read at the end of the internal buffer if there is still space.
+    ///
+    /// This function will not compact the buffer and only append data to the end of the buffer.
+    /// If buffer compaction is needed, call `compact` before calling this function.
+    ///
+    /// # Panics
+    /// This function will panic if `available_space` returns 0 because in this case
+    /// no further bytes can be appended to the end of the buffer.
+    ///
+    /// # Errors
+    /// All other errors are propagated from the Read.
+    ///
+    /// # Returns
+    /// Number of bytes read, 0 indicating EOF on the Read impl.
+    pub fn read_into_internal_buffer<T: Read>(&mut self, read: &mut T) -> io::Result<usize> {
+        debug_assert!(self.fill_count <= S);
+
+        assert_ne!(self.available_space(), 0, "internal buffer is full.");
+
+        let count = read.read(&mut self.buffer.as_mut_slice()[self.fill_count..])?;
+        self.fill_count += count;
+        Ok(count)
+    }
+
+    /// This function will copy/append the given bytes to the end of the internal buffer
+    /// so that they are picked up by a later read.
+    ///
+    /// This function does not compact the buffer.
+    /// If buffer compaction is needed, call `compact` before calling this function.
+    ///
+    /// # Panics
+    /// if the internal buffer does not have enough space to hold the given number of bytes.
+    pub fn copy_into_internal_buffer(&mut self, data: &[u8]) {
+        let space = self.available_space();
+        let needed = data.len();
+        assert!(space >= needed, "internal buffer is too small. The internal buffer can currently only hold {space} more bytes. This can't fit {needed} more bytes.");
+
+        self.buffer[self.fill_count..self.fill_count + needed].copy_from_slice(data);
+        self.fill_count += needed;
+    }
+
+    /// This function returns the portion of the internal buffer that is filled with data for inspection.
+    /// The next call to read would read the first byte of the returned slice.
+    #[must_use]
+    pub fn internal_buffer(&self) -> &[u8] {
+        &self.buffer[self.read_count..self.fill_count]
+    }
+
+    /// This function returns the portion of the internal buffer that is filled with data for inspection and modification.
+    /// The next call to read would read the first byte of the returned slice.
+    /// Modification of the returned slice directly modifies the data stored in the internal buffer.
+    #[must_use]
+    pub fn internal_buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer[self.read_count..]
+    }
+
+    /// Skips/Discards number bytes of the internal buffer.
+    ///
+    /// # Panics
+    /// If the amount to skip is greater than the number of bytes in the internal buffer.
+    /// Call `available` to check the maximum number of bytes that can be skipped.
+    pub fn skip(&mut self, amount: usize) {
+        let available = self.available();
+        assert!(available >= amount, "attempted to skip {amount} bytes, but only {available} bytes are available");
+
+        if available == amount {
+            // The buffer is empty now.
+            self.read_count = 0;
+            self.fill_count = 0;
+            return;
+        }
+
+        self.read_count += amount;
+    }
+
+
+
     /// This fn will return true if at least one byte can be read.
-    /// If the internal buffer is not empty this fn immediately returns true.
-    /// If the internal buffer is empty then it will call `read()` once and return true if the read did not return Ok(0).
+    /// If the internal buffer is not empty, then this fn immediately returns true.
+    /// If the internal buffer is empty, then it will call `read()` once and return true if the read did not return Ok(0).
+    /// The data that was read is stored in the internal buffer.
     ///
     /// # Errors
     /// propagated from Read, including `TimedOut` and `WouldBlock`

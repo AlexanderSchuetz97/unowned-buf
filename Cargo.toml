@@ -1,14 +1,16 @@
 [package]
 name = "unowned-buf"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Alexander Schütz <aschuetz@protonmail.com>"]
 keywords = ["buffer", "read", "write"]
 categories = ["caching"]
 readme = "README.md"
+rust-version = "1.60.0"
 repository = "https://github.com/AlexanderSchuetz97/unowned-buf"
 description = "Buffered Read+BufRead and Write for Rust that does not own the underlying Read/Write"
+
 
 [dev-dependencies]
 rand = "0.8.5"

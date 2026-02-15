@@ -5,3 +5,4 @@
 /fuzz/coverage
 
 .idea
+Cargo.lock

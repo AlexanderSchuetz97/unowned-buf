@@ -429,6 +429,8 @@ pub fn test_append_read() {
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
+    assert_eq!(buffer.internal_buffer_mut().len(), 0);
+    assert_eq!(buffer.internal_buffer().len(), 0);
 
     assert_eq!(
         buffer
@@ -511,6 +513,8 @@ pub fn test_append_read() {
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
+    assert_eq!(buffer.internal_buffer_mut().len(), 0);
+    assert_eq!(buffer.internal_buffer().len(), 0);
 
     assert_eq!(
         buffer
@@ -567,6 +571,12 @@ pub fn test_append() {
     assert_eq!(buffer.read_count(), 3);
     assert_eq!(buffer.fill_count(), 8);
     assert_eq!(buffer.available_space(), 56);
+    assert_eq!(buffer.internal_buffer().len(), 5);
+    assert_eq!(buffer.internal_buffer_mut().len(), 5);
+    assert_eq!(buffer.internal_buffer(), &[2, 7, 8, 9, 10]);
+    assert_eq!(buffer.internal_buffer_mut(), &[2, 7, 8, 9, 10]);
+    buffer.internal_buffer_mut()[4] = 129;
+
     assert_eq!(buffer.try_read(&mut rbuf), 3);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 6);
@@ -584,10 +594,51 @@ pub fn test_append() {
     assert_eq!(buffer.available_space(), 62);
 
     let mut rbuf = [0u8; 3];
-    let expected = [10, 0, 0];
+    let expected = [129, 0, 0];
     assert_eq!(buffer.try_read(&mut rbuf), 1);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
+    assert_eq!(buffer.internal_buffer_mut().len(), 0);
+    assert_eq!(buffer.internal_buffer().len(), 0);
+}
+
+#[test]
+pub fn test_try_write() {
+    let mut buffer = UnownedWriteBuffer::<64>::new();
+    assert_eq!(buffer.flushable(), 0);
+    assert_eq!(buffer.available(), 64);
+
+    assert_eq!(buffer.try_write(&[0, 1, 2, 3]), 4);
+    assert_eq!(buffer.flushable(), 4);
+    assert_eq!(buffer.available(), 60);
+
+    let mut data = Vec::new();
+    buffer.flush(&mut data).unwrap();
+    assert_eq!(data.as_slice(), &[0, 1, 2, 3]);
+    assert_eq!(buffer.flushable(), 0);
+    assert_eq!(buffer.available(), 64);
+
+    assert_eq!(buffer.try_write(&[5, 6, 7, 8]), 4);
+    assert_eq!(buffer.try_write(&[9, 10, 11, 12]), 4);
+    assert_eq!(buffer.internal_buffer().len(), 8);
+    assert_eq!(buffer.internal_buffer_mut().len(), 8);
+
+    assert_eq!(buffer.internal_buffer(), &[5, 6, 7, 8, 9, 10, 11, 12]);
+    assert_eq!(buffer.internal_buffer_mut(), &[5, 6, 7, 8, 9, 10, 11, 12]);
+    buffer.internal_buffer_mut()[6] = 44;
+
+    assert_eq!(buffer.flushable(), 8);
+    assert_eq!(buffer.available(), 56);
+    assert_eq!(buffer.try_write(&[57; 57]), 56);
+    assert_eq!(buffer.flushable(), 64);
+    assert_eq!(buffer.available(), 0);
+
+    data.truncate(0);
+    buffer.flush(&mut data).unwrap();
+    assert_eq!(&data.as_slice()[..8], &[5, 6, 7, 8, 9, 10, 44, 12]);
+    assert_eq!(&data.as_slice()[8..], &[57; 56]);
+    assert_eq!(buffer.flushable(), 0);
+    assert_eq!(buffer.available(), 64);
 }

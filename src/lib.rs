@@ -118,6 +118,26 @@ impl<const S: usize> UnownedWriteBuffer<S> {
         self.buffer.len() - self.fill_count
     }
 
+    /// Returns the amount of bytes that can be flushed from the internal buffer to a underlying Write.
+    #[must_use]
+    pub const fn flushable(&self) -> usize {
+        self.fill_count
+    }
+
+    /// Returns the bytes currently stored in the internal buffer that are not yet flushed.
+    #[must_use]
+    pub fn internal_buffer(&self) -> &[u8] {
+        &self.buffer[..self.fill_count]
+    }
+
+    /// Returns the bytes currently stored in the internal buffer that are not yet flushed.
+    ///
+    /// Modifying the returned data will directly modify the bytes in the internal buffer.
+    #[must_use]
+    pub fn internal_buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer[..self.fill_count]
+    }
+
     #[must_use]
     pub const fn size(&self) -> usize {
         S
@@ -163,7 +183,7 @@ impl<const S: usize> UnownedWriteBuffer<S> {
     /// If the supplied buffer is only partially written then this fn guarantees that
     /// the entire internal buffer has been filled and subsequent calls to `try_write` are pointless
     /// unless flush or `write`/`write_all` are first called.
-    pub fn try_write<T: Write>(&mut self, buffer: &[u8]) -> usize {
+    pub fn try_write(&mut self, buffer: &[u8]) -> usize {
         if buffer.is_empty() {
             return 0;
         }
@@ -462,7 +482,7 @@ impl<const S: usize> UnownedReadBuffer<S> {
     /// Modification of the returned slice directly modifies the data stored in the internal buffer.
     #[must_use]
     pub fn internal_buffer_mut(&mut self) -> &mut [u8] {
-        &mut self.buffer[self.read_count..]
+        &mut self.buffer[self.read_count..self.fill_count]
     }
 
     /// Skips/Discards number bytes of the internal buffer.

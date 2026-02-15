@@ -127,11 +127,23 @@ pub fn test_read_until_limit_bug() {
     let mut src_cursor = Cursor::new(&mut data);
     let mut buf = UnownedReadBuffer::default();
     let mut target: Vec<u8> = Vec::new();
-    assert_eq!(2, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(
+        2,
+        buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target)
+            .expect("ERR")
+    );
     assert_eq!(target, vec![0xA, 0xB]);
-    assert_eq!(3, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(
+        3,
+        buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target)
+            .expect("ERR")
+    );
     assert_eq!(target, vec![0xA, 0xB, 0xC, 0xD, 0xB]);
-    assert_eq!(2, buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target).expect("ERR"));
+    assert_eq!(
+        2,
+        buf.read_until_limit(&mut src_cursor, 0xB, 16, &mut target)
+            .expect("ERR")
+    );
     assert_eq!(target, vec![0xA, 0xB, 0xC, 0xD, 0xB, 0xE, 0xF]);
 }
 
@@ -376,13 +388,12 @@ pub fn test_write() {
     }
 }
 
-
 #[test]
 pub fn test_append_read_full() {
     let mut buffer = UnownedReadBuffer::<64>::new();
     buffer.copy_into_internal_buffer(&[0; 64]);
     let pnk = panic::catch_unwind(move || {
-        _= buffer.read_into_internal_buffer(&mut Cursor::new(vec![]));
+        _ = buffer.read_into_internal_buffer(&mut Cursor::new(vec![]));
     });
 
     assert!(pnk.is_err());
@@ -419,7 +430,12 @@ pub fn test_append_read() {
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    assert_eq!(buffer.read_into_internal_buffer(&mut Cursor::new(vec![4,1,2,3])).unwrap(), 4);
+    assert_eq!(
+        buffer
+            .read_into_internal_buffer(&mut Cursor::new(vec![4, 1, 2, 3]))
+            .unwrap(),
+        4
+    );
 
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 4);
@@ -438,22 +454,32 @@ pub fn test_append_read() {
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    assert_eq!(buffer.read_into_internal_buffer(&mut Cursor::new(vec![6,4,3,2])).unwrap(), 4);
+    assert_eq!(
+        buffer
+            .read_into_internal_buffer(&mut Cursor::new(vec![6, 4, 3, 2]))
+            .unwrap(),
+        4
+    );
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 4);
     assert_eq!(buffer.available_space(), 60);
 
     let mut rbuf = [0u8; 3];
-    let expected = [6u8,4,3];
+    let expected = [6u8, 4, 3];
     assert_eq!(buffer.try_read(&mut rbuf), 3);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 3);
     assert_eq!(buffer.fill_count(), 4);
     assert_eq!(buffer.available_space(), 60);
 
-    assert_eq!(buffer.read_into_internal_buffer(&mut Cursor::new(vec![7,8,9,10])).unwrap(), 4);
+    assert_eq!(
+        buffer
+            .read_into_internal_buffer(&mut Cursor::new(vec![7, 8, 9, 10]))
+            .unwrap(),
+        4
+    );
     let mut rbuf = [0u8; 3];
-    let expected = [2u8,7,8];
+    let expected = [2u8, 7, 8];
     assert_eq!(buffer.read_count(), 3);
     assert_eq!(buffer.fill_count(), 8);
     assert_eq!(buffer.available_space(), 56);
@@ -469,19 +495,29 @@ pub fn test_append_read() {
     assert_eq!(buffer.available_space(), 62);
 
     let mut rbuf = [0u8; 3];
-    let expected = [9u8,10,0];
+    let expected = [9u8, 10, 0];
     assert_eq!(buffer.try_read(&mut rbuf), 2);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    assert_eq!(buffer.read_into_internal_buffer(&mut Cursor::new(vec![])).unwrap(), 0);
+    assert_eq!(
+        buffer
+            .read_into_internal_buffer(&mut Cursor::new(vec![]))
+            .unwrap(),
+        0
+    );
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    assert_eq!(buffer.read_into_internal_buffer(&mut Cursor::new(vec![64; 128])).unwrap(), buffer.size());
+    assert_eq!(
+        buffer
+            .read_into_internal_buffer(&mut Cursor::new(vec![64; 128]))
+            .unwrap(),
+        buffer.size()
+    );
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 64);
     assert_eq!(buffer.available_space(), 0);
@@ -494,7 +530,7 @@ pub fn test_append() {
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    buffer.copy_into_internal_buffer(&[4,1,2,3]);
+    buffer.copy_into_internal_buffer(&[4, 1, 2, 3]);
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 4);
     assert_eq!(buffer.available_space(), 60);
@@ -512,22 +548,22 @@ pub fn test_append() {
     assert_eq!(buffer.fill_count(), 0);
     assert_eq!(buffer.available_space(), 64);
 
-    buffer.copy_into_internal_buffer(&[6,4,3,2]);
+    buffer.copy_into_internal_buffer(&[6, 4, 3, 2]);
     assert_eq!(buffer.read_count(), 0);
     assert_eq!(buffer.fill_count(), 4);
     assert_eq!(buffer.available_space(), 60);
 
     let mut rbuf = [0u8; 3];
-    let expected = [6u8,4,3];
+    let expected = [6u8, 4, 3];
     assert_eq!(buffer.try_read(&mut rbuf), 3);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 3);
     assert_eq!(buffer.fill_count(), 4);
     assert_eq!(buffer.available_space(), 60);
 
-    buffer.copy_into_internal_buffer(&[7,8,9,10]);
+    buffer.copy_into_internal_buffer(&[7, 8, 9, 10]);
     let mut rbuf = [0u8; 3];
-    let expected = [2u8,7,8];
+    let expected = [2u8, 7, 8];
     assert_eq!(buffer.read_count(), 3);
     assert_eq!(buffer.fill_count(), 8);
     assert_eq!(buffer.available_space(), 56);
@@ -548,7 +584,7 @@ pub fn test_append() {
     assert_eq!(buffer.available_space(), 62);
 
     let mut rbuf = [0u8; 3];
-    let expected = [10,0,0];
+    let expected = [10, 0, 0];
     assert_eq!(buffer.try_read(&mut rbuf), 1);
     assert_eq!(rbuf, expected);
     assert_eq!(buffer.read_count(), 0);

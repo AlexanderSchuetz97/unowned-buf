@@ -367,7 +367,9 @@ impl<const S: usize> UnownedReadBuffer<S> {
 
     /// returns the size of the internal buffer.
     #[must_use]
-    pub const fn size(&self) -> usize { S }
+    pub const fn size(&self) -> usize {
+        S
+    }
 
     /// Returns the number of bytes in the buffer already read.
     /// This is essentially the read cursor position in the internal buffer.
@@ -470,7 +472,10 @@ impl<const S: usize> UnownedReadBuffer<S> {
     /// Call `available` to check the maximum number of bytes that can be skipped.
     pub fn skip(&mut self, amount: usize) {
         let available = self.available();
-        assert!(available >= amount, "attempted to skip {amount} bytes, but only {available} bytes are available");
+        assert!(
+            available >= amount,
+            "attempted to skip {amount} bytes, but only {available} bytes are available"
+        );
 
         if available == amount {
             // The buffer is empty now.
@@ -481,8 +486,6 @@ impl<const S: usize> UnownedReadBuffer<S> {
 
         self.read_count += amount;
     }
-
-
 
     /// This fn will return true if at least one byte can be read.
     /// If the internal buffer is not empty, then this fn immediately returns true.
